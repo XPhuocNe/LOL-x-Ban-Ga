@@ -1,1 +1,764 @@
+FILE: constants.py
+Tập hợp toàn bộ hằng số cấu hình của game.
+
+Các nhóm hằng số được chia theo chức năng:
+    - Màn hình & bản đồ   : kích thước cửa sổ, vị trí camera cố định.
+    - Thời gian & tốc độ  : FPS, cooldown tấn công, tốc độ đạn.
+    - Kích thước hitbox   : bán kính va chạm của từng loại thực thể.
+    - Chiến đấu           : máu, sát thương, tầm đánh.
+    - Điểm số & spawn     : ngưỡng điểm xuất hiện Boss, khoảng cách sinh quái.
+    - Map phase           : ngưỡng điểm chuyển map và thông số từng map.
+    - Buff                : id và thời lượng các buff nhận được khi hạ boss.
+    - Màu sắc             : toàn bộ bảng màu RGB dùng khi vẽ.
+
+Cập nhật lần cuối: 23:17 ngày 28/04/2026
+------------------------------
+
+==================================================
+
+FILE: main.py
+Điểm khởi động game và vòng lặp chính.
+
+Quản lý chuyển đổi giữa ba trạng thái ứng dụng:
+- 'main_menu': hiển thị màn hình chính, chờ người dùng nhấn bắt đầu.
+- 'playing': chạy GameManager, kiểm tra điều kiện chuyển sang game_over.
+- 'game_over': vẽ game phía dưới làm nền rồi phủ màn hình kết quả lên trên.
+
+Cập nhật lần cuối: 23:17 ngày 28/04/2026
+------------------------------
+  METHOD/FUNC: main
+Khởi tạo pygame, tạo cửa sổ và chạy vòng lặp game cho đến khi thoát.
+
+
+==================================================
+
+FILE: buff_manager.py
+Quản lý hệ thống hiệu ứng tăng cường (buff) đang hoạt động trên nhân vật.
+
+Cập nhật lần cuối: 23:17 ngày 28/04/2026
+------------------------------
+CLASS: BuffManager
+Quản lý danh sách các buff đang hoạt động và điều phối thời gian hiệu lực của chúng.
+
+  METHOD/FUNC: __init__
+Khởi tạo hệ thống quản lý buff, bộ đếm thời gian và các cấu trúc dữ liệu tối ưu.
+
+  METHOD/FUNC: add
+Kích hoạt một hiệu ứng mới hoặc làm mới thời gian nếu hiệu ứng đó đang tồn tại.
+Input: 
+    buff_id (str): Mã định danh của loại buff cần thêm.
+
+  METHOD/FUNC: has
+Kiểm tra một loại hiệu ứng cụ thể có đang hoạt động hay không.
+Input: 
+    buff_id (str): Mã định danh buff cần kiểm tra.
+Output: 
+    (bool): True nếu buff còn hiệu lực, ngược lại False.
+
+  METHOD/FUNC: update
+Cập nhật đồng hồ hệ thống, xử lý các buff hết hạn và áp dụng hiệu ứng hồi phục cho người chơi.
+Input: 
+    dt (float): Thời gian trôi qua giữa 2 frame (giây).
+    player (Player): Đối tượng nhân vật để áp dụng hiệu ứng hồi máu.
+Output: 
+    (list[str]): Danh sách các buff_id vừa hết hạn trong frame này.
+
+  METHOD/FUNC: remaining
+Tính toán thời gian hiệu lực còn lại của một loại buff cụ thể.
+Input: 
+    buff_id (str): Mã định danh của buff cần kiểm tra.
+Output: 
+    (float): Số giây còn lại trước khi hết hạn.
+
+  METHOD/FUNC: clear
+Xóa bỏ toàn bộ buff và đặt lại các bộ đếm thời gian về trạng thái ban đầu.
+
+
+==================================================
+
+FILE: camera.py
+Quản lý hệ thống camera — điều chỉnh góc nhìn theo vị trí nhân vật.
+
+Cung cấp các phép chuyển đổi tọa độ giữa không gian thế giới (world space)
+và không gian màn hình (screen space). Camera chỉ cuộn theo trục Y,
+trục X luôn cố định với offset bằng 0.
+
+Cập nhật lần cuối: 23:17 ngày 28/04/2026
+------------------------------
+CLASS: Camera
+Quản lý offset cuộn của màn hình theo vị trí nhân vật người chơi.
+
+Lưu offset_x và offset_y để các hàm chuyển đổi tọa độ biết cần
+dịch chuyển bao nhiêu pixel khi vẽ thực thể từ world space lên screen.
+
+  METHOD/FUNC: update
+Tính lại offset camera để nhân vật luôn hiển thị tại vị trí cố định trên màn hình.
+
+Input:
+    player_world_x (float): Tọa độ X của player trong thế giới (không dùng, giữ offset_x = 0).
+    player_world_y (float): Tọa độ Y của player trong thế giới — dùng tính offset_y.
+
+  METHOD/FUNC: world_to_screen
+Chuyển tọa độ world space sang pixel screen space để vẽ lên màn hình.
+
+Input:
+    wx (float): Tọa độ X trong thế giới.
+    wy (float): Tọa độ Y trong thế giới.
+Output:
+    tuple[int, int]: Cặp (sx, sy) là tọa độ pixel trên màn hình.
+
+  METHOD/FUNC: screen_to_world
+Chuyển tọa độ pixel màn hình (thường từ sự kiện chuột) sang world space.
+
+Input:
+    sx (float): Tọa độ X trên màn hình (pixel).
+    sy (float): Tọa độ Y trên màn hình (pixel).
+Output:
+    tuple[float, float]: Cặp (world_x, world_y) trong không gian thế giới.
+
+
+==================================================
+
+FILE: game_managers.py
+Điều phối logic gameplay cốt lõi và quản lý màn hình menu.
+
+GameManager xử lý toàn bộ một ván chơi: tương tác giữa các thực thể,
+tính điểm, sinh chướng ngại vật, sinh quái và quản lý các map phase.
+MenuManager vẽ và xử lý tương tác trên màn hình chính và Game Over.
+
+Cập nhật lần cuối: 23:17 ngày 28/04/2026
+------------------------------
+  METHOD/FUNC: push_out_of_wall
+Đẩy thực thể ra ngoài chướng ngại vật nếu đang bị lún vào.
+
+Tìm điểm gần nhất trên hình chữ nhật so với tâm thực thể, tính độ lún
+rồi dịch chuyển thực thể ra theo hướng pháp tuyến. Nếu tâm trùng khớp
+hoàn toàn với điểm gần nhất thì đẩy thẳng lên trên một lượng bằng bán kính.
+
+Input:
+    entity: Thực thể có thuộc tính .x, .y, .radius — là Player, Enemy hoặc Boss.
+    obs    (dict): Chướng ngại vật với các key 'x', 'y', 'w', 'h'.
+
+  METHOD/FUNC: _get_map_phase
+Xác định chỉ số map phase hiện tại dựa trên điểm số.
+
+Input:
+    score (int): Điểm số hiện tại của người chơi.
+Output:
+    int: 1 (map nước), 2 (map lửa) hoặc 3 (map gió).
+
+  METHOD/FUNC: _map_colors
+Trả về dict màu sắc tương ứng với map phase để vẽ nền và chướng ngại vật.
+
+Input:
+    phase (int): Chỉ số map phase (1, 2 hoặc 3).
+Output:
+    dict: Chứa các key 'bg', 'grid', 'obs', 'obs_bd' với giá trị là tuple RGB.
+
+  METHOD/FUNC: _buff_for_phase
+Tra cứu buff_id trao cho player khi hạ Boss trên map phase tương ứng.
+
+Input:
+    phase (int): Chỉ số map phase hiện tại (1, 2 hoặc 3).
+Output:
+    str | None: Mã buff_id (BUFF_WATER / BUFF_FIRE / BUFF_WIND), hoặc None nếu không khớp.
+
+CLASS: MenuManager
+Quản lý việc vẽ và xử lý tương tác trên màn hình chính và màn hình Game Over.
+
+Biến _t tăng liên tục để tạo hiệu ứng tiêu đề nhấp nháy theo hàm sin.
+Nền sao dùng seed cố định nên vị trí sao không thay đổi giữa các frame.
+
+CLASS: GameManager
+Điều phối toàn bộ logic gameplay trong một ván chơi.
+
+Giữ danh sách tất cả thực thể đang hoạt động, xử lý va chạm qua
+Quadtree thay vì O(n²), quản lý buff qua BuffManager, và chuyển
+màu sắc map theo phase dựa trên điểm số.
+Điểm số = khoảng cách đã đi + thưởng kill.
+
+  METHOD/FUNC: update
+Tăng bộ đếm thời gian nội bộ để phục vụ animation nhấp nháy tiêu đề.
+
+Input:
+    dt (float): Thời gian trôi qua giữa 2 frame, tính bằng giây.
+
+  METHOD/FUNC: draw_main_menu
+Vẽ toàn bộ màn hình chính lên self.screen.
+
+Bao gồm: nền sao, tiêu đề nhấp nháy, slogan, nút bắt đầu,
+bảng hướng dẫn điều khiển và tên tác giả ở footer.
+
+  METHOD/FUNC: draw_game_over
+Vẽ màn hình Game Over phủ lên frame game phía dưới.
+
+Hiển thị lớp phủ đen bán trong suốt, điểm số, số kill,
+nút chơi lại và nút quay về menu chính.
+
+Input:
+    score        (int): Điểm số cuối cùng của ván chơi.
+    kills_normal (int): Số quái thường đã tiêu diệt.
+    kills_boss   (int): Số Boss đã tiêu diệt.
+
+  METHOD/FUNC: _draw_button
+Vẽ nút bo góc tại (cx, cy) và trả về Rect của nút để dùng cho hit-test.
+
+  METHOD/FUNC: get_button_rect
+Tính Rect của nút tại (cx, cy) mà không vẽ gì lên màn hình, dùng cho hit-test click.
+
+  METHOD/FUNC: _draw_star_bg
+Vẽ 60 ngôi sao tĩnh với vị trí và độ sáng cố định nhờ seed ngẫu nhiên.
+
+  METHOD/FUNC: handle_main_menu_click
+Kiểm tra click trên màn hình chính. Trả về 'play' nếu nhấn nút bắt đầu, chuỗi rỗng nếu miss.
+
+  METHOD/FUNC: handle_game_over_click
+Kiểm tra click trên màn hình Game Over. Trả về 'restart', 'menu' hoặc chuỗi rỗng.
+
+  METHOD/FUNC: handle_event
+Chuyển sự kiện pygame thành hành động của người chơi.
+
+Chuột phải đặt điểm đến, chuột trái bắn đạn về phía con trỏ,
+Space kích hoạt Blink về phía con trỏ. Bỏ qua tất cả nếu
+game không đang ở trạng thái 'playing'. Không bắt QUIT ở đây.
+
+  METHOD/FUNC: update
+Cập nhật toàn bộ trạng thái game mỗi frame theo thứ tự cố định.
+
+Thứ tự: player → camera → điểm số → map phase → buff → spawn →
+quái/boss → đạn/AoE → va chạm → Quadtree collision → dọn dẹp →
+spawn boss → game over check.
+
+  METHOD/FUNC: _on_boss_killed
+Xử lý sự kiện hạ Boss: trao buff tương ứng với map phase hiện tại
+và hiển thị thông báo trong 3 giây.
+
+  METHOD/FUNC: draw
+Vẽ toàn bộ một frame gameplay lên màn hình.
+
+Thứ tự vẽ từ dưới lên: nền lưới → chướng ngại vật (màu theo map phase) →
+AoE → đạn → quái → boss → người chơi → HUD (bao gồm buff bar).
+
+  METHOD/FUNC: _maybe_spawn
+Sinh quái và chướng ngại vật khi người chơi tiến đủ gần mốc spawn tiếp theo.
+
+Mốc spawn giảm dần (Y nhỏ hơn = phía trên) mỗi lần sau khi sinh xong.
+Các thực thể đã bị bỏ lại quá xa phía dưới màn hình được xóa khỏi danh sách.
+
+  METHOD/FUNC: _spawn_obstacle
+Đặt một đến hai hình chữ nhật chướng ngại vật tại hàng world_y.
+
+Mỗi hình được thử đặt tối đa 5 lần ở vị trí X ngẫu nhiên.
+Bỏ qua nếu vị trí mới đè lên một chướng ngại vật đã tồn tại.
+
+  METHOD/FUNC: _maybe_spawn_boss
+Sinh Boss khi điểm số vượt qua một bội số của BOSS_SCORE_INTERVAL chưa được xử lý.
+
+Mỗi ngưỡng chỉ sinh Boss một lần nhờ so sánh với _last_boss_thresh.
+Boss xuất hiện phía trên người chơi một khoảng cố định, lệch X ngẫu nhiên nhỏ.
+
+  METHOD/FUNC: _resolve_entity_collisions
+Xử lý va chạm vật lý giữa các thực thể và giữa thực thể với tường.
+
+Bước 1 — Quadtree: xây cây bao phủ vùng camera hiện tại mở rộng thêm
+một màn hình buffer. Với mỗi thực thể, query lân cận trong bán kính
+(radius * 2 + BOSS_RADIUS) rồi chỉ kiểm tra đẩy với những thực thể
+tìm được — tránh O(n²) của vòng lặp lồng nhau.
+
+Bước 2: gọi push_out_of_wall cho từng thực thể với từng chướng ngại vật.
+
+  METHOD/FUNC: _draw_background
+Vẽ lưới nền cuộn theo camera và vạch ngang đánh dấu điểm xuất phát.
+
+Màu lưới lấy từ _map_colors theo phase hiện tại.
+Offset lưới được tính modulo grid_step để lưới liên tục khi cuộn.
+
+  METHOD/FUNC: _draw_hud
+Vẽ giao diện HUD gồm điểm số, kill, map phase, thanh máu,
+cooldown Blink, buff bar với thời gian còn lại và thông báo buff mới.
+
+  METHOD/FUNC: _draw_death_screen
+Vẽ lớp chuyển cảnh khi người chơi vừa chết.
+
+Nền tối dần theo _death_timer. Trong 1.5 giây đầu hiển thị chữ
+GAME OVER, điểm số và kill count. Sau 1.5 giây main.py chuyển
+app_state sang 'game_over' và MenuManager tiếp quản việc vẽ.
+
+
+==================================================
+
+FILE: quadtree.py
+Cấu trúc dữ liệu Quadtree dùng để tăng tốc phát hiện va chạm giữa các thực thể.
+
+Thay vì kiểm tra mọi cặp thực thể O(n²), Quadtree chia không gian thành
+4 vùng con đệ quy. Mỗi thực thể chỉ được kiểm tra với những thực thể
+trong cùng vùng hoặc vùng lân cận — giảm độ phức tạp xuống O(n log n).
+Cây được tạo lại hoàn toàn mỗi frame vì các thực thể di chuyển liên tục.
+
+Cập nhật lần cuối: 23:17 ngày 28/04/2026
+------------------------------
+CLASS: _Rect
+Hình chữ nhật axis-aligned dùng nội bộ trong Quadtree để đại diện cho vùng không gian.
+
+CLASS: QuadTree
+Cây Quadtree phân vùng không gian 2D để tăng tốc collision detection.
+
+Mỗi node quản lý một vùng hình chữ nhật và tối đa CAPACITY thực thể.
+Khi đầy, node tự chia thành 4 vùng con (NW, NE, SW, SE) và phân phối
+lại toàn bộ thực thể xuống các con. Độ sâu tối đa là 8 để tránh đệ quy
+vô hạn khi nhiều thực thể nằm đúng cùng một điểm.
+
+  METHOD/FUNC: build_quadtree
+Tạo một Quadtree mới bao phủ vùng (x, y, w, h) và insert toàn bộ entities vào.
+
+Hàm tiện ích này được GameManager gọi mỗi frame trước khi kiểm tra va chạm.
+Thực thể nằm ngoài vùng bao phủ bị bỏ qua một cách im lặng.
+
+Input:
+    entities (list) : Danh sách các thực thể cần đưa vào cây (Player, Enemy, Boss).
+    x        (float): Tọa độ X góc trên-trái của vùng Quadtree.
+    y        (float): Tọa độ Y góc trên-trái của vùng Quadtree.
+    w        (float): Chiều rộng vùng Quadtree.
+    h        (float): Chiều cao vùng Quadtree.
+Output:
+    QuadTree: Cây Quadtree đã được insert toàn bộ entities.
+
+  METHOD/FUNC: contains
+Kiểm tra một điểm có nằm trong (hoặc trên biên) hình chữ nhật không.
+
+Input:
+    ex (float): Tọa độ X của điểm cần kiểm tra.
+    ey (float): Tọa độ Y của điểm cần kiểm tra.
+Output:
+    bool: True nếu điểm nằm trong hoặc trên biên.
+
+  METHOD/FUNC: intersects
+Kiểm tra hai hình chữ nhật có giao nhau không (kể cả chạm cạnh).
+
+Input:
+    other (_Rect): Hình chữ nhật cần so sánh.
+Output:
+    bool: True nếu hai hình chữ nhật giao nhau hoặc chạm cạnh.
+
+  METHOD/FUNC: __init__
+Khởi tạo một node Quadtree với vùng quản lý là boundary.
+
+Input:
+    boundary (_Rect): Hình chữ nhật xác định vùng không gian node này quản lý.
+    depth    (int)  : Độ sâu hiện tại trong cây, dùng để giới hạn đệ quy tối đa 8 cấp.
+
+  METHOD/FUNC: insert
+Thêm một thực thể vào cây.
+
+Input:
+    entity: Thực thể có thuộc tính .x và .y — là Player, Enemy hoặc Boss.
+Output:
+    bool: True nếu insert thành công, False nếu thực thể nằm ngoài vùng quản lý.
+
+  METHOD/FUNC: query_radius
+Trả về tất cả thực thể nằm trong vùng tìm kiếm hình vuông bao quanh tâm (cx, cy).
+
+Dùng hình vuông thay hình tròn để tránh tính sqrt — bộ lọc chính xác
+được thực hiện bên ngoài bằng math.hypot khi cần.
+
+Input:
+    cx     (float): Tọa độ X tâm vùng tìm kiếm.
+    cy     (float): Tọa độ Y tâm vùng tìm kiếm.
+    radius (float): Bán kính (dùng tạo hình vuông 2*radius x 2*radius).
+Output:
+    list: Danh sách các thực thể nằm trong vùng tìm kiếm.
+
+  METHOD/FUNC: _query
+Đệ quy thu thập tất cả thực thể trong các node giao với rect.
+
+Input:
+    rect   (_Rect): Hình chữ nhật tìm kiếm.
+    result (list) : Danh sách tích lũy kết quả, được sửa trực tiếp (in-place).
+
+  METHOD/FUNC: _subdivide
+Chia node hiện tại thành 4 node con bằng nhau và phân phối lại các thực thể.
+
+Giới hạn độ sâu tối đa là 8 để tránh đệ quy vô hạn khi nhiều thực thể
+nằm đúng cùng một điểm. Nếu đã đạt độ sâu tối đa, không tạo thêm con.
+
+
+==================================================
+
+FILE: player.py
+Định nghĩa nhân vật người chơi và logic điều khiển.
+
+Người chơi di chuyển bằng click chuột phải đặt điểm đến,
+bắn đạn bằng click chuột trái, và có kỹ năng Blink dịch chuyển
+nhanh bằng phím Space. Trục Y giảm dần khi tiến lên — Y nhỏ hơn là xa hơn.
+
+Buff ảnh hưởng đến player được áp dụng từ bên ngoài qua BuffManager:
+    - BUFF_FIRE : try_attack bắn 3 đạn hình nón thay vì 1.
+    - BUFF_WIND : speed x2, blink_cooldown giảm còn một nửa.
+Các giá trị speed và blink_cooldown được đặt lại mỗi khi buff thay đổi
+thông qua apply_buff_stats() được GameManager gọi.
+
+Cập nhật lần cuối: 23:17 ngày 28/04/2026
+------------------------------
+CLASS: Player
+Quản lý trạng thái và hành vi của nhân vật chính do người chơi điều khiển.
+
+Lưu vị trí, máu, cooldown kỹ năng, hiệu ứng hình ảnh và trạng thái buff.
+Di chuyển theo kiểu point-and-click, va chạm kiểm tra riêng theo từng
+trục X và Y để trượt dọc tường thay vì bị chặn hoàn toàn.
+
+  METHOD/FUNC: _any_circle_rect
+Kiểm tra hình tròn có chạm vào ít nhất một chướng ngại vật trong danh sách không.
+
+Input:
+    cx        (float): Tọa độ X tâm hình tròn.
+    cy        (float): Tọa độ Y tâm hình tròn.
+    r         (float): Bán kính hình tròn.
+    obstacles (list) : Danh sách dict chướng ngại vật {'x','y','w','h'}.
+Output:
+    bool: True nếu có ít nhất một chướng ngại vật bị chạm.
+
+  METHOD/FUNC: _circle_rect
+Kiểm tra va chạm giữa hình tròn và một hình chữ nhật.
+
+Dùng phương pháp tìm điểm gần nhất trên hình chữ nhật rồi so khoảng cách với bán kính.
+
+Input:
+    cx        (float): Tọa độ X tâm hình tròn.
+    cy        (float): Tọa độ Y tâm hình tròn.
+    r         (float): Bán kính hình tròn.
+    rect_dict (dict) : Hình chữ nhật với các key 'x', 'y', 'w', 'h'.
+Output:
+    bool: True nếu hình tròn và hình chữ nhật giao nhau.
+
+  METHOD/FUNC: apply_buff_stats
+Đồng bộ chỉ số speed và blink_cooldown theo trạng thái buff hiện tại.
+
+GameManager gọi hàm này mỗi frame sau khi BuffManager.update() chạy xong.
+
+Input:
+    fire (bool): True nếu BUFF_FIRE đang active — bắn 3 đạn hình nón.
+    wind (bool): True nếu BUFF_WIND đang active — x2 speed, giảm nửa CD blink.
+
+  METHOD/FUNC: blink_ready
+Kiểm tra kỹ năng Blink có sẵn sàng không.
+
+Output:
+    bool: True nếu _blink_timer đã về 0 (không còn cooldown).
+
+  METHOD/FUNC: attack_ready
+Kiểm tra người chơi có thể bắn viên đạn tiếp theo không.
+
+Output:
+    bool: True nếu _attack_timer đã về 0.
+
+  METHOD/FUNC: set_move_target
+Đặt điểm đến trong world space để nhân vật tự động di chuyển tới.
+
+Input:
+    world_x (float): Tọa độ X đích trong thế giới.
+    world_y (float): Tọa độ Y đích trong thế giới.
+
+  METHOD/FUNC: try_blink
+Dịch chuyển tức thì về phía điểm chỉ định, tối đa BLINK_RANGE pixel.
+
+Nếu điểm đích nằm bên trong chướng ngại vật, tìm kiếm nhị phân lùi dần
+điểm đến về phía người chơi cho đến khi tìm được vị trí hợp lệ sát rìa tường.
+
+Input:
+    world_x   (float): Tọa độ X đích trong thế giới.
+    world_y   (float): Tọa độ Y đích trong thế giới.
+    obstacles (list) : Danh sách dict chướng ngại vật {'x','y','w','h'} để kiểm tra va chạm.
+Output:
+    bool: True nếu Blink thành công, False nếu đang trong thời gian hồi.
+
+  METHOD/FUNC: try_attack
+Bắn đạn theo hướng cho trước nếu cooldown đã hết.
+
+Bình thường bắn 1 viên thẳng. Khi BUFF_FIRE active, bắn 3 viên
+tỏa hình nón với góc lệch ±0.22 rad (≈ 12.6°) hai bên.
+
+Input:
+    direction_x  (float): Thành phần X của vector hướng bắn (chưa cần chuẩn hóa).
+    direction_y  (float): Thành phần Y của vector hướng bắn (chưa cần chuẩn hóa).
+    projectiles  (list) : Danh sách đạn đang hoạt động — đạn mới được append vào đây.
+
+  METHOD/FUNC: take_damage
+Trừ máu và bật hiệu ứng chớp trắng khi bị trúng đòn.
+
+Không làm gì nếu player đã chết. Đặt alive = False khi máu về 0.
+
+Input:
+    dmg (int): Lượng sát thương cần trừ.
+
+  METHOD/FUNC: update
+Cập nhật toàn bộ trạng thái player mỗi frame.
+
+Đếm ngược cooldown, di chuyển từng bước về điểm đến có kiểm tra
+va chạm tường theo từng trục, giữ nhân vật trong biên bản đồ và
+ghi lại Y nhỏ nhất đạt được để tính điểm khoảng cách.
+
+Input:
+    dt        (float): Thời gian trôi qua giữa 2 frame, tính bằng giây.
+    obstacles (list) : Danh sách dict chướng ngại vật {'x','y','w','h'}.
+
+  METHOD/FUNC: draw
+Vẽ nhân vật và các hiệu ứng đi kèm lên surface.
+
+Thứ tự vẽ: bóng ma Blink mờ dần → thân nhân vật → thanh máu →
+vòng cung tiến độ cooldown Blink → chấm xanh tại điểm đến.
+Khi BUFF_WIND active vẽ thêm vòng sáng xanh lá, BUFF_FIRE vẽ vòng cam,
+BUFF_WATER vẽ vòng xanh dương.
+
+Input:
+    surface (pygame.Surface): Bề mặt màn hình để vẽ lên.
+    camera  (Camera)        : Dùng để chuyển tọa độ world → screen.
+
+
+==================================================
+
+FILE: enemy.py
+Định nghĩa quái thường với hai kiểu hành vi tấn công khác nhau.
+
+Type 1 bắn đạn thẳng có tính toán dự đoán vị trí người chơi.
+Type 2 đặt vùng nổ AoE trễ gần vị trí người chơi, có hiệu ứng cảnh báo
+trước khi phát nổ để người chơi kịp né. Cả hai loại đứng yên và tấn công
+theo cooldown, không di chuyển.
+
+Cập nhật lần cuối: 23:17 ngày 28/04/2026
+------------------------------
+CLASS: Enemy
+Quản lý trạng thái và hành vi của quái đứng yên tự động tấn công.
+
+Kiểu tấn công phụ thuộc vào etype (1 hoặc 2). Cooldown được khởi tạo
+ngẫu nhiên để các quái trong cùng một cụm không bắn đồng loạt.
+
+  METHOD/FUNC: generate_enemy_cluster
+Tạo một đợt quái mới tại hàng world_y với độ khó tỉ lệ theo điểm số.
+
+Số lượng quái mỗi loại và tốc độ cooldown tăng dần theo score,
+tối đa tại ngưỡng difficulty = 5.0. Vị trí X phân bố đều và xáo trộn ngẫu nhiên.
+
+Input:
+    world_y (float): Tọa độ Y trong thế giới nơi đợt quái được đặt.
+    score   (int)  : Điểm số hiện tại dùng để tính hệ số khó (difficulty).
+Output:
+    list[Enemy]: Danh sách các đối tượng Enemy vừa được tạo.
+
+  METHOD/FUNC: _spread_positions
+Chia đều n vị trí X trong chiều rộng bản đồ rồi thêm nhiễu ngẫu nhiên nhỏ.
+
+Đảm bảo khoảng cách tối thiểu giữa các quái bằng margin và trả về
+danh sách đã xáo trộn thứ tự.
+
+Input:
+    n      (int): Số lượng vị trí cần tạo.
+    width  (int): Chiều rộng bản đồ tính bằng pixel.
+    margin (int): Khoảng cách tối thiểu từ mép bản đồ và giữa các vị trí.
+Output:
+    list[float]: Danh sách tọa độ X đã xáo trộn. Rỗng nếu n = 0.
+
+  METHOD/FUNC: take_damage
+Trừ máu, bật flash trắng và đánh dấu chết nếu máu về 0.
+
+Input:
+    dmg (int): Lượng sát thương cần trừ.
+
+  METHOD/FUNC: in_range
+Kiểm tra người chơi có đang đứng trong tầm tấn công không.
+
+Input:
+    px (float): Tọa độ X của người chơi.
+    py (float): Tọa độ Y của người chơi.
+Output:
+    bool: True nếu khoảng cách đến người chơi nhỏ hơn hoặc bằng attack_range.
+
+  METHOD/FUNC: update
+Cập nhật trạng thái quái mỗi frame: xử lý flash, đếm cooldown và kích hoạt tấn công.
+
+Khi người chơi ngoài tầm, timer hồi chậm lại (0.5x) thay vì dừng hẳn,
+tránh tình trạng quái bắn ngay khi người chơi vừa bước vào tầm.
+
+Input:
+    dt             (float) : Thời gian trôi qua giữa 2 frame, tính bằng giây.
+    player         (Player): Đối tượng người chơi để kiểm tra tầm và hướng bắn.
+    projectiles    (list)  : Danh sách đạn — Projectile mới được append vào đây.
+    delayed_attacks(list)  : Danh sách AoE trễ — DelayedCircleAttack mới append vào đây.
+
+  METHOD/FUNC: _fire
+Thực hiện đòn tấn công phù hợp với kiểu quái.
+
+Type 1: tính hướng có dự đoán nhẹ vị trí tương lai của người chơi
+dựa trên điểm đến hiện tại, rồi bắn một viên đạn thẳng.
+Type 2: đặt một DelayedCircleAttack tại vị trí ngẫu nhiên gần người chơi.
+
+Input:
+    player         (Player): Đối tượng người chơi để lấy vị trí và hướng di chuyển.
+    projectiles    (list)  : Danh sách đạn — Projectile mới được append vào đây.
+    delayed_attacks(list)  : Danh sách AoE trễ — DelayedCircleAttack mới append vào đây.
+
+  METHOD/FUNC: draw
+Vẽ quái lên màn hình.
+
+Type 2 có thêm vòng tròn viền vàng để phân biệt với type 1.
+Thanh máu nhỏ hiển thị phía trên đầu quái.
+
+Input:
+    surface (pygame.Surface): Bề mặt màn hình để vẽ lên.
+    camera  (Camera)        : Dùng để chuyển tọa độ world → screen.
+
+
+==================================================
+
+FILE: boss.py
+Định nghĩa Boss — kẻ địch mạnh xuất hiện theo mốc điểm số.
+
+Boss có hai pha tấn công luân phiên. Pha 0 bắn loạt 3 viên đạn tỏa hình quạt,
+thực hiện 2 lần liên tiếp trước khi chuyển pha. Pha 1 đặt 2 vùng nổ AoE lớn
+chồng lên và xung quanh người chơi. Trong lúc chờ tấn công, Boss lắc lư ngang
+trong phạm vi giới hạn để tránh đứng yên một chỗ.
+
+Cập nhật lần cuối: 23:17 ngày 28/04/2026
+------------------------------
+CLASS: Boss
+Quản lý trạng thái và hành vi của kẻ địch đặc biệt hai pha tấn công.
+
+HP cao hơn nhiều so với quái thường, sát thương mỗi đòn cũng lớn hơn.
+Khi bị trúng đạn, toàn thân chớp trắng ngắn. Vòng sáng tím nhấp nháy
+xung quanh thể hiện trạng thái còn sống.
+
+  METHOD/FUNC: take_damage
+Trừ máu, bật flash trắng và đánh dấu chết khi máu về 0.
+
+Input:
+    dmg (int): Lượng sát thương cần trừ.
+
+  METHOD/FUNC: in_range
+Kiểm tra người chơi có đang đứng trong tầm tấn công của Boss không.
+
+Input:
+    px (float): Tọa độ X của người chơi.
+    py (float): Tọa độ Y của người chơi.
+Output:
+    bool: True nếu khoảng cách đến người chơi nhỏ hơn hoặc bằng attack_range.
+
+  METHOD/FUNC: update
+Cập nhật Boss mỗi frame: nhấp nháy vòng sáng, lắc ngang, đếm cooldown và kích hoạt tấn công.
+
+Khi người chơi ra ngoài tầm, timer hồi chậm lại (0.5x) thay vì dừng hẳn.
+Sau mỗi đợt tấn công Boss chuyển pha và điều chỉnh thời gian chờ tiếp theo.
+
+Input:
+    dt             (float) : Thời gian trôi qua giữa 2 frame, tính bằng giây.
+    player         (Player): Đối tượng người chơi để kiểm tra tầm và hướng bắn.
+    projectiles    (list)  : Danh sách đạn — Projectile mới được append vào đây.
+    delayed_attacks(list)  : Danh sách AoE trễ — DelayedCircleAttack mới append vào đây.
+
+  METHOD/FUNC: _fire
+Thực hiện đòn tấn công theo pha hiện tại.
+
+Pha 0: bắn 3 viên đạn tỏa góc ±0.18 rad quanh hướng thẳng vào người chơi.
+Pha 1: đặt 2 vùng nổ AoE — một trúng ngay vị trí người chơi, một lệch ngẫu nhiên
+trong bán kính BOSS_TYPE2_AOE_R — với delay khác nhau.
+
+Input:
+    player         (Player): Đối tượng người chơi để lấy vị trí đặt AoE hoặc tính hướng đạn.
+    projectiles    (list)  : Danh sách đạn — Projectile mới được append vào đây.
+    delayed_attacks(list)  : Danh sách AoE trễ — DelayedCircleAttack mới append vào đây.
+
+  METHOD/FUNC: draw
+Vẽ Boss lên màn hình theo thứ tự từ dưới lên.
+
+Thứ tự: vòng sáng tím bán trong suốt nhấp nháy → thân tím → lõi nhỏ →
+điểm trắng ở giữa → thanh máu rộng có viền tím và nhãn "BOSS".
+
+Input:
+    surface (pygame.Surface): Bề mặt màn hình để vẽ lên.
+    camera  (Camera)        : Dùng để chuyển tọa độ world → screen.
+
+
+==================================================
+
+FILE: projectile.py
+Định nghĩa các lớp đạn và đòn tấn công trễ trong game.
+
+Projectile là đạn bay thẳng theo vận tốc cố định, tự hủy khi đi quá tầm
+hoặc ra khỏi biên bản đồ. DelayedCircleAttack là vùng nổ AoE được kích hoạt
+sau một khoảng trễ — trong thời gian chờ có hiệu ứng cảnh báo vòng tròn co dần,
+khi nổ có hiệu ứng flash cam đỏ tắt nhanh.
+
+Cập nhật lần cuối: 23:17 ngày 28/04/2026
+------------------------------
+CLASS: Projectile
+Quản lý trạng thái và hiển thị của viên đạn bay theo đường thẳng.
+
+Lưu lại tối đa 5 vị trí gần nhất để vẽ vệt đuôi mờ dần phía sau.
+Tự đánh dấu alive = False khi vượt quá max_range hoặc ra khỏi bản đồ.
+Thuộc tính owner xác định đạn thuộc về ai ('player', 'enemy', 'boss')
+để hệ thống va chạm biết cần kiểm tra với đối tượng nào.
+
+CLASS: DelayedCircleAttack
+Quản lý vùng nổ hình tròn được kích hoạt sau một khoảng thời gian trễ.
+
+Trong giai đoạn chờ hiển thị vòng cảnh báo màu vàng mở rộng dần để người chơi né.
+Khi hết delay, triggered = True, gây sát thương một lần duy nhất rồi
+đối tượng tự hủy sau 0.15 giây khi hiệu ứng flash tắt xong.
+
+  METHOD/FUNC: update
+Di chuyển đạn theo vận tốc, ghi vệt đuôi và kiểm tra điều kiện tự hủy.
+
+Input:
+    dt (float): Thời gian trôi qua giữa 2 frame, tính bằng giây.
+
+  METHOD/FUNC: hits
+Kiểm tra đạn có chạm vào hình tròn của thực thể mục tiêu không.
+
+Input:
+    entity_x (float): Tọa độ X tâm thực thể mục tiêu.
+    entity_y (float): Tọa độ Y tâm thực thể mục tiêu.
+    entity_r (float): Bán kính va chạm của thực thể mục tiêu.
+Output:
+    bool: True nếu đạn giao với hình tròn của thực thể.
+
+  METHOD/FUNC: draw
+Vẽ vệt đuôi mờ dần và thân đạn lên màn hình.
+
+Vẽ vệt đuôi từ cũ đến mới với alpha tăng dần, sau đó vẽ thân đạn
+cùng điểm sáng trắng ở giữa để tạo cảm giác chiều sâu.
+
+Input:
+    surface (pygame.Surface): Bề mặt màn hình để vẽ lên.
+    camera  (Camera)        : Dùng để chuyển tọa độ world → screen.
+
+  METHOD/FUNC: update
+Đếm ngược thời gian trễ và chuyển sang trạng thái đã nổ khi hết giờ.
+
+Sau khi triggered, tiếp tục đếm thêm 0.15 giây để hiệu ứng flash
+kịp tắt dần trước khi đối tượng bị xóa khỏi danh sách.
+
+Input:
+    dt (float): Thời gian trôi qua giữa 2 frame, tính bằng giây.
+
+  METHOD/FUNC: hits
+Kiểm tra vùng nổ có chạm vào thực thể sau khi đã triggered không.
+
+Input:
+    entity_x (float): Tọa độ X tâm thực thể mục tiêu.
+    entity_y (float): Tọa độ Y tâm thực thể mục tiêu.
+    entity_r (float): Bán kính va chạm của thực thể mục tiêu.
+Output:
+    bool: True chỉ khi đã nổ (triggered = True) và thực thể nằm trong vùng aoe_r.
+
+  METHOD/FUNC: draw
+Vẽ hiệu ứng AoE tương ứng với trạng thái hiện tại.
+
+Trước khi nổ: nền vàng mờ bao phủ toàn vùng và vòng sáng vàng đậm dần,
+rộng dần theo tiến độ delay để cảnh báo người chơi.
+Sau khi nổ: vòng tròn cam đỏ và lõi vàng nhạt cùng mờ dần đến hết.
+
+Input:
+    surface (pygame.Surface): Bề mặt màn hình để vẽ lên.
+    camera  (Camera)        : Dùng để chuyển tọa độ world → screen.
+
+
+==================================================
 
